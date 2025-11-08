@@ -4,7 +4,7 @@
   import StartAnimationDesktop from '$lib/os/StartAnimationDesktop.svelte';
   import StartAnimationMobile from '$lib/os/StartAnimationMobile.svelte';
   import BootScreen from '$lib/os/BootScreen.svelte';
-  import HomeLayout from '$lib/ui/HomeLayout.svelte';
+  import Home from '$lib/ui/Home/Home.svelte';
 
   // 0 = start animation
   // 1 = bootscreen
@@ -40,5 +40,5 @@
 {:else if phase === 1}
   <BootScreen on:done={onBootDone} />
 {:else if phase === 2}
-  <HomeLayout />
+  <Home />
 {/if}
