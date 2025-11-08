@@ -3,6 +3,7 @@
   import * as THREE from "three";
   import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
   import gsap from "gsap";
+  import { beginLoading, endLoading, setLoadingProgress } from "$lib/stores/loading";
 
   const dispatch = createEventDispatcher();
 
@@ -17,8 +18,14 @@
   let scrollProgress = 0;
   let fakeScrollValue = 0;
   let animationFinished = false;
-  let showScrollHint = true;
+  let showScrollHint = false;
   let lastTouchY: number | null = null;
+  const LOADER_ID = "start-animation-mobile";
+  let sceneActivated = false;
+  let listenersAttached = false;
+  let loadingCompleted = false;
+  let reportedProgress = 0;
+  let fakeProgressInterval: ReturnType<typeof setInterval> | null = null;
 
   const VIRTUAL_SCROLL_DISTANCE = 2500;
   const AUTO_COMPLETE_DELAY = 5000;
@@ -77,11 +84,22 @@
     lastTouchY = null;
   };
 
+  const addInputListeners = () => {
+    if (listenersAttached) return;
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("touchstart", handleTouchStart, { passive: false });
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+    listenersAttached = true;
+  };
+
   const removeInputListeners = () => {
+    if (!listenersAttached) return;
     window.removeEventListener("wheel", handleWheel);
     window.removeEventListener("touchstart", handleTouchStart);
     window.removeEventListener("touchmove", handleTouchMove);
     window.removeEventListener("touchend", handleTouchEnd);
+    listenersAttached = false;
   };
 
   const forceCompleteAnimation = () => {
@@ -95,6 +113,26 @@
       onUpdate: () => setProgress(proxy.value),
       onComplete: completeAnimation
     });
+  };
+
+  const startRenderLoop = () => {
+    const renderFrame = () => {
+      frame = requestAnimationFrame(renderFrame);
+      renderer.render(scene, camera);
+    };
+    renderFrame();
+  };
+
+  const activateScene = () => {
+    if (sceneActivated) return;
+    sceneActivated = true;
+    showScrollHint = true;
+    addInputListeners();
+    autoCompleteTimeout = window.setTimeout(forceCompleteAnimation, AUTO_COMPLETE_DELAY);
+    hintTimeout = window.setTimeout(() => {
+      showScrollHint = false;
+    }, 1500);
+    startRenderLoop();
   };
 
   const completeAnimation = () => {
@@ -114,6 +152,8 @@
   };
 
   onMount(() => {
+    beginLoading(LOADER_ID);
+    setLoadingProgress(LOADER_ID, 0);
     scene = new THREE.Scene();
 
     const distance = 50;
@@ -131,7 +171,43 @@
     const hemi = new THREE.HemisphereLight(0xffffff, 0x222222, 2);
     scene.add(hemi);
 
-    const texLoader = new THREE.TextureLoader();
+    const pushProgress = (value: number) => {
+      reportedProgress = Math.max(reportedProgress, value);
+      setLoadingProgress(LOADER_ID, reportedProgress);
+    };
+
+    const startFakeProgress = () => {
+      if (fakeProgressInterval) return;
+      fakeProgressInterval = window.setInterval(() => {
+        if (loadingCompleted) return;
+        pushProgress(Math.min(reportedProgress + 0.01, 0.92));
+      }, 120);
+    };
+
+    const stopFakeProgress = () => {
+      if (!fakeProgressInterval) return;
+      clearInterval(fakeProgressInterval);
+      fakeProgressInterval = null;
+    };
+
+    pushProgress(0.02);
+    startFakeProgress();
+
+    const loadingManager = new THREE.LoadingManager();
+    loadingManager.onProgress = (_, loaded, total) => {
+      if (total) {
+        pushProgress(Math.min(0.95, loaded / total));
+      }
+    };
+    loadingManager.onLoad = () => {
+      loadingCompleted = true;
+      stopFakeProgress();
+      pushProgress(1);
+      endLoading(LOADER_ID);
+      activateScene();
+    };
+
+    const texLoader = new THREE.TextureLoader(loadingManager);
 
     const texFloor = texLoader.load("/textures/floor.jpg");
     texFloor.wrapS = THREE.RepeatWrapping;
@@ -155,7 +231,20 @@
     wall.position.set(0, 0, -38);
     scene.add(wall);
 
-    const loader = new GLTFLoader();
+    const targetPosition = {
+      z: camera.position.z - 50,
+      y: camera.position.y - 10
+    };
+
+    cameraTimeline = gsap.timeline({ paused: true });
+    cameraTimeline.to(camera.position, {
+      z: targetPosition.z,
+      y: targetPosition.y,
+      duration: 2.5,
+      ease: "power1.inOut"
+    });
+
+    const loader = new GLTFLoader(loadingManager);
 
     loader.load("/models/phone.glb", (gltf) => {
       const phone = gltf.scene;
@@ -175,36 +264,6 @@
 
       scene.add(phone);
     });
-
-    const targetPosition = {
-      z: camera.position.z - 50,
-      y: camera.position.y - 10
-    };
-
-    cameraTimeline = gsap.timeline({ paused: true });
-    cameraTimeline.to(camera.position, {
-      z: targetPosition.z,
-      y: targetPosition.y,
-      duration: 2.5,
-      ease: "power1.inOut"
-    });
-
-    window.addEventListener("wheel", handleWheel, { passive: false });
-    window.addEventListener("touchstart", handleTouchStart, { passive: false });
-    window.addEventListener("touchmove", handleTouchMove, { passive: false });
-    window.addEventListener("touchend", handleTouchEnd, { passive: true });
-
-    autoCompleteTimeout = window.setTimeout(forceCompleteAnimation, AUTO_COMPLETE_DELAY);
-
-    hintTimeout = window.setTimeout(() => {
-      showScrollHint = false;
-    }, 1500);
-
-    const tick = () => {
-      frame = requestAnimationFrame(tick);
-      renderer.render(scene, camera);
-    };
-    tick();
 
     const resize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
@@ -226,9 +285,13 @@
         clearTimeout(hintTimeout);
         hintTimeout = null;
       }
+      stopFakeProgress();
       cameraTimeline?.kill();
       renderer.dispose();
       scene.clear();
+      if (!loadingCompleted) {
+        endLoading(LOADER_ID);
+      }
     };
   });
 </script>
