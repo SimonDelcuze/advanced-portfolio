@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import HomeDesktop from "$lib/ui/Home/HomeDesktop.svelte";
-  import HomeMobile from "$lib/ui/Home/HomeMobile.svelte";
+  import HomeDesktop from "$lib/ui/home/desktop/HomeDesktop.svelte";
+  import HomeMobile from "$lib/ui/home/mobile/HomeMobile.svelte";
 
   const MOBILE_QUERY = "(max-width: 900px)";
 

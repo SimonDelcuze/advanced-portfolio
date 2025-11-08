@@ -4,7 +4,7 @@
   import StartAnimationDesktop from '$lib/os/StartAnimationDesktop.svelte';
   import StartAnimationMobile from '$lib/os/StartAnimationMobile.svelte';
   import BootScreen from '$lib/os/BootScreen.svelte';
-  import Home from '$lib/ui/Home/Home.svelte';
+  import Home from '$lib/ui/home/Home.svelte';
 
   // 0 = start animation
   // 1 = bootscreen
