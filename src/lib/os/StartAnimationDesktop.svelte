@@ -11,6 +11,70 @@
   let renderer: THREE.WebGLRenderer;
   let camera: THREE.PerspectiveCamera;
   let frame: number;
+  let cameraTimeline: gsap.core.Timeline | null = null;
+  let autoCompleteTimeout: ReturnType<typeof setTimeout> | null = null;
+  let scrollProgress = 0;
+  let fakeScrollValue = 0;
+  let animationFinished = false;
+  let showScrollHint = true;
+  let hintTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  const VIRTUAL_SCROLL_DISTANCE = 2500;
+  const AUTO_COMPLETE_DELAY = 5000;
+  const SCROLL_SENSITIVITY = 1;
+
+  const setProgress = (value: number) => {
+    if (!cameraTimeline) return;
+    const clamped = gsap.utils.clamp(0, 1, value);
+    scrollProgress = clamped;
+    cameraTimeline.progress(clamped);
+    if (clamped >= 1 && !animationFinished) {
+      completeAnimation();
+    }
+  };
+
+  const handleWheel = (event: WheelEvent) => {
+    if (animationFinished || !cameraTimeline) return;
+    event.preventDefault();
+    fakeScrollValue = gsap.utils.clamp(
+      0,
+      VIRTUAL_SCROLL_DISTANCE,
+      fakeScrollValue + event.deltaY * SCROLL_SENSITIVITY
+    );
+    setProgress(fakeScrollValue / VIRTUAL_SCROLL_DISTANCE);
+    if (showScrollHint) {
+      showScrollHint = false;
+    }
+  };
+
+  const forceCompleteAnimation = () => {
+    if (animationFinished || !cameraTimeline) return;
+    window.removeEventListener("wheel", handleWheel);
+    const proxy = { value: scrollProgress };
+    gsap.to(proxy, {
+      value: 1,
+      duration: 0.8,
+      ease: "power1.inOut",
+      onUpdate: () => setProgress(proxy.value),
+      onComplete: completeAnimation
+    });
+  };
+
+  const completeAnimation = () => {
+    if (animationFinished) return;
+    animationFinished = true;
+    window.removeEventListener("wheel", handleWheel);
+    if (autoCompleteTimeout) {
+      clearTimeout(autoCompleteTimeout);
+      autoCompleteTimeout = null;
+    }
+    if (hintTimeout) {
+      clearTimeout(hintTimeout);
+      hintTimeout = null;
+    }
+    showScrollHint = false;
+    dispatch("ready");
+  };
 
   onMount(() => {
     scene = new THREE.Scene();
@@ -96,15 +160,25 @@
       });
     });
 
-    gsap.to(camera.position, {
+    const targetPosition = {
       z: camera.position.z - 50,
-      y: camera.position.y - 15,
-      duration: 3,
-      ease: "power1.inOut",
-      onComplete: () => {
-        dispatch("ready");
-      }
+      y: camera.position.y - 15
+    };
+
+    cameraTimeline = gsap.timeline({ paused: true });
+    cameraTimeline.to(camera.position, {
+      z: targetPosition.z,
+      y: targetPosition.y,
+      duration: 2.5,
+      ease: "power1.inOut"
     });
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    autoCompleteTimeout = window.setTimeout(forceCompleteAnimation, AUTO_COMPLETE_DELAY);
+
+    hintTimeout = window.setTimeout(() => {
+      showScrollHint = false;
+    }, 1500);
 
     const tick = () => {
       frame = requestAnimationFrame(tick);
@@ -123,12 +197,79 @@
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
+      window.removeEventListener("wheel", handleWheel);
+      if (autoCompleteTimeout) {
+        clearTimeout(autoCompleteTimeout);
+        autoCompleteTimeout = null;
+      }
+      if (hintTimeout) {
+        clearTimeout(hintTimeout);
+        hintTimeout = null;
+      }
+      cameraTimeline?.kill();
       renderer.dispose();
       scene.clear();
     };
   });
 </script>
 
-<div class="w-full h-full bg-zinc-900">
+<div class="relative w-full h-full bg-zinc-900">
   <canvas bind:this={canvas} class="w-full h-full" />
+  {#if showScrollHint}
+    <div class="scroll-hint pointer-events-none">
+      <span class="scroll-hint__label">Scroll down</span>
+      <svg class="hint-arrow" width="20" height="40" viewBox="0 0 20 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 15L10 22L17 15" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        <line x1="10" y1="4" x2="10" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
+      </svg>
+    </div>
+  {/if}
 </div>
+
+<style>
+  .scroll-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    color: #ffffff;
+    animation: fadeOut 0.3s ease forwards;
+    animation-delay: 1s;
+  }
+
+  .scroll-hint__label {
+    font-size: clamp(1rem, 2vw, 1.5rem);
+    text-transform: uppercase;
+    letter-spacing: 0.35em;
+    font-weight: 600;
+  }
+
+  .hint-arrow {
+    animation: arrowBounce 1.2s ease-in-out infinite;
+  }
+
+  @keyframes arrowBounce {
+    0% {
+      transform: translateY(0);
+      opacity: 0.4;
+    }
+    50% {
+      transform: translateY(6px);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 0.4;
+    }
+  }
+
+  @keyframes fadeOut {
+    to {
+      opacity: 0;
+    }
+  }
+</style>
