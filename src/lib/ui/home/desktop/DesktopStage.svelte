@@ -3,6 +3,7 @@
   import gsap from "gsap";
   import DesktopIcon from "./DesktopIcon.svelte";
   import DesktopInfoPanel from "./DesktopInfoPanel.svelte";
+  import Taskbar, { type TaskbarIcon } from "./Taskbar.svelte";
 
   const createIcon = (letter: string, color: string) => {
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'><rect width='96' height='96' rx='18' fill='${color}'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-family='Inter,Segoe UI,Arial' font-size='38' font-weight='600' fill='white'>${letter}</text></svg>`;
@@ -18,8 +19,8 @@
       label: "Projets",
       href: "/projets",
       image: "https://res.cloudinary.com/diree8d1h/image/upload/v1762635013/projets_qztnnh.png",
-      col: 6,
-      row: 2
+      col: 4,
+      row: 1
     },
     {
       id: "github",
@@ -27,15 +28,15 @@
       href: "https://github.com/SimonDelcuze",
       image: "https://cdn.pixabay.com/photo/2022/01/30/13/33/github-6980894_960_720.png",
       col: 5,
-      row: 2
+      row: 1
     },
     {
       id: "linkedin",
       label: "LinkedIn",
       href: "https://www.linkedin.com/in/simon-delcuze/",
       image: "https://img.icons8.com/color/512/linkedin.png",
-      col: 4,
-      row: 2
+      col: 6,
+      row: 1
     },
     {
       id: "contact",
@@ -43,7 +44,7 @@
       href: "mailto:contact@sdelcuze.fr",
       image: "https://images.icon-icons.com/2631/PNG/512/gmail_new_logo_icon_159149.png",
       col: 7,
-      row: 2
+      row: 1
     },
     {
       id: "about",
@@ -51,7 +52,7 @@
       href: "/about",
       image: "https://res.cloudinary.com/diree8d1h/image/upload/v1762635140/about_d9e30i.png",
       col: 8,
-      row: 2
+      row: 1
     }
   ];
 
@@ -81,6 +82,8 @@
   $: marqueeRect = getMarqueeRect();
   let isDraggingIcons = false;
 
+  const FEATURED_ICON_ID = "projets";
+
   const iconStyle = (icon: IconConfig) =>
     `transform: translate3d(${icon.col * CELL_WIDTH}px, ${icon.row * CELL_HEIGHT}px, 0)`;
 
@@ -104,6 +107,23 @@
   const handleOpen = (icon: IconConfig) => {
     if (!icon.href) return;
     window.open(icon.href, "_blank", "noopener,noreferrer");
+  };
+
+  let taskbarIconList: TaskbarIcon[] = [];
+  $: taskbarIconList = icons.map((icon) => ({
+    id: icon.id,
+    label: icon.label,
+    href: icon.href,
+    image: icon.image
+  }));
+
+  const handleTaskbarOpen = (event: CustomEvent<{ icon: TaskbarIcon }>) => {
+    const base = icons.find((item) => item.id === event.detail.icon.id);
+    if (base) {
+      handleOpen(base);
+    } else if (event.detail.icon.href) {
+      window.open(event.detail.icon.href, "_blank", "noopener,noreferrer");
+    }
   };
 
   const clampGrid = (value: number, max: number) => Math.max(0, Math.min(value, max));
@@ -422,6 +442,7 @@
             image={icon.image}
             selected={selectedIds.has(icon.id)}
             dragging={draggingSet.has(icon.id)}
+            featured={icon.id === FEATURED_ICON_ID}
           />
         </div>
       </div>
@@ -437,6 +458,8 @@
   <section class="info-panel" bind:this={infoPanelRef}>
     <DesktopInfoPanel />
   </section>
+
+  <Taskbar icons={taskbarIconList} on:open={handleTaskbarOpen} />
 </div>
 
 <style>
@@ -445,6 +468,7 @@
     min-height: 100vh;
     width: 100%;
     padding: clamp(1.5rem, 3vw, 3rem);
+    padding-bottom: calc(64px + clamp(1.5rem, 3vw, 3rem));
     overflow: hidden;
   }
 
