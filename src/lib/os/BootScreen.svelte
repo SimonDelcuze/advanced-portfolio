@@ -1,40 +1,70 @@
 <script lang="ts">
-  import { onMount, createEventDispatcher } from 'svelte';
-  import gsap from 'gsap';
-
-  export let lines: string[] = [];
+  import { onMount, createEventDispatcher } from "svelte";
 
   const dispatch = createEventDispatcher();
-  let container: HTMLDivElement;
-  let rows: HTMLDivElement[] = [];
 
-  onMount(() => {
-    const valid = rows.filter(Boolean);
-    valid.forEach((el) => (el.style.opacity = '0'));
+  let lines:string[] = [];
+  let showPrompt = false;
+  let message = "";
 
-    const tl = gsap.timeline({
-      defaults: { ease: 'power2.out' },
-      onComplete: () => {
-        dispatch('done');
+  function push(line:string, delay:number){
+    return new Promise((resolve)=>{
+      setTimeout(()=>{
+        lines = [...lines, line];
+        resolve(true);
+      }, delay);
+    })
+  }
+
+  function start(){
+    dispatch("done");
+  }
+
+  async function refuse(){
+    showPrompt = false;
+    message = "Starting anyway...";
+    await new Promise(r=>setTimeout(r,1200));
+    dispatch("done");
+  }
+
+  onMount(async ()=>{
+    await push("[BOOT] Initializing kernel...", 250);
+    await push("[BOOT] Mounting filesystem...", 350);
+    await push("[BOOT] Checking services...", 300);
+    await push("[BOOT] Loading GPU stack...", 300);
+    await push("[BOOT] Loading UI runtime...", 350);
+    await push("[BOOT] Handshake with pipeline...", 250);
+
+    setTimeout(()=>{
+      showPrompt = true;
+    }, 700);
+
+    setTimeout(()=>{
+      if(!message && showPrompt){
+        start();
       }
-    });
-
-    tl.to(valid, {
-      opacity: 1,
-      duration: 10,
-      stagger: 0.12
-    });
+    }, 5000);
   });
 </script>
 
-<div bind:this={container} class="font-mono text-[13px] leading-tight text-neutral-200">
-  {#each lines as line, i (i)}
-    <div
-      bind:this={rows[i]}
-      class="opacity-0 select-none"
-      aria-hidden="true"
-    >
-      {line}
-    </div>
-  {/each}
+<div class="w-full h-screen bg-black text-neutral-300 font-mono flex flex-col items-center justify-center p-10">
+  <div class="max-w-3xl w-full flex flex-col gap-2 text-xl text-center">
+    {#each lines as l}
+      <div>{l}</div>
+    {/each}
+
+    {#if showPrompt}
+      <div class="mt-6 text-green-400 font-extrabold text-4xl">Boot ready</div>
+
+      <div class="mt-4 flex items-center justify-center gap-6 text-white text-2xl">
+        <span>Start ?</span>
+        <button on:click={start} class="px-6 py-2 bg-green-600 text-black font-bold rounded">Yes</button>
+        <button on:click={refuse} class="px-6 py-2 bg-neutral-700 text-white rounded">No</button>
+      </div>
+    {/if}
+
+    {#if message}
+      <div class="mt-6 text-yellow-400 text-3xl">{message}</div>
+    {/if}
+  </div>
 </div>
