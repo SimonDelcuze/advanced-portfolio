@@ -19,7 +19,7 @@
     const angleX = THREE.MathUtils.degToRad(-20);
     const angleY = THREE.MathUtils.degToRad(0);
 
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
     camera.position.set(0, 30, distance);
     camera.rotation.set(angleX, angleY, 0);
 
@@ -56,54 +56,33 @@
 
     const loader = new GLTFLoader();
 
-    loader.load("/models/table.glb", (gltf) => {
-      const table = gltf.scene;
-      table.scale.set(50,50,50);
-      table.position.set(0, -0.5, -3);
-      scene.add(table);
+    loader.load("/models/phone.glb", (gltf) => {
+      const phone = gltf.scene;
 
-      loader.load("/models/macbook.glb", (gltf2) => {
-        const macbook = gltf2.scene;
-        macbook.scale.set(0.75, 0.75, 0.75);
-        macbook.position.set(0, 0, 0);
+      phone.scale.set(50,50,50);
+      phone.position.set(0, 15, 0);
+      phone.rotation.x += THREE.MathUtils.degToRad(-45);
 
-        macbook.traverse((child: THREE.Object3D) => {
-          if (child instanceof THREE.Mesh) {
-            if (child.name === "Object_123") {
-              child.material = new THREE.MeshBasicMaterial({ color: 0x000000 });
-            }
+      phone.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          if (child.name === "HNjLcrScyhRxCzI") {
+            // écran → black
+            child.material = new THREE.MeshBasicMaterial({ color: 0x000000 });
           }
-        });
-
-        scene.add(macbook);
-
-        loader.load("/models/coffee.glb", (gltf3) => {
-          const coffee = gltf3.scene;
-          coffee.scale.set(1.5,1.5,1.5);
-          coffee.position.set(37.5, -38, -10);
-          coffee.rotation.y += THREE.MathUtils.degToRad(180);
-          scene.add(coffee);
-
-          loader.load("/models/phone.glb", (gltf4) => {
-            const phone = gltf4.scene;
-            phone.scale.set(15,15,15);
-            phone.position.set(-25, 0.25, 0);
-            phone.rotation.x += THREE.MathUtils.degToRad(270);
-            phone.rotation.z += THREE.MathUtils.degToRad(30);
-            scene.add(phone);
-          });
-        });
+        }
       });
-    });
 
-    gsap.to(camera.position, {
-      z: camera.position.z - 50,
-      y: camera.position.y - 15,
-      duration: 3,
-      ease: "power1.inOut",
-      onComplete: () => {
-        dispatch("ready");
-      }
+      scene.add(phone);
+
+      gsap.to(camera.position, {
+        z: camera.position.z - 50,
+        y: camera.position.y - 10,
+        duration: 3,
+        ease: "power1.inOut",
+        onComplete: () => {
+          dispatch("ready");
+        }
+      });
     });
 
     const tick = () => {
